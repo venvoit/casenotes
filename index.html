@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detective's Case Notes - Live Feed</title>
+    <style>
+        :root {
+            --paper-bg: #fdf6e3;
+            --ink-color: #2c3e50;
+            --highlight: #2980b9;
+            --error-color: #e74c3c;
+        }
+
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #2c3e50;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+            margin: 0;
+        }
+
+        #game-container {
+            background-color: var(--paper-bg);
+            width: 100%;
+            max-width: 850px;
+            min-height: 500px;
+            padding: 40px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border-left: 25px solid #e67e22;
+            position: relative;
+        }
+
+        .loading { text-align: center; margin-top: 50px; font-weight: bold; }
+
+        h2 { text-align: center; text-decoration: underline; margin-top: 0; text-transform: uppercase; }
+
+        .case-notes { 
+            line-height: 2.2; 
+            font-size: 1.15rem; 
+            color: var(--ink-color); 
+            white-space: pre-wrap;
+            margin-top: 25px;
+        }
+
+        .drop-zone {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 110px;
+            height: 1.4em;
+            border-bottom: 2px solid #7f8c8d;
+            margin: 0 4px;
+            vertical-align: middle;
+            position: relative;
+            top: -2px;
+            transition: all 0.2s;
+            font-weight: bold;
+        }
+
+        .drop-zone.wrong { color: var(--error-color); border-bottom-color: var(--error-color); }
+        .drop-zone.correct { color: var(--highlight); border-bottom: none; font-style: italic; }
+        .drop-zone.hovered { background-color: rgba(52, 152, 219, 0.1); }
+
+        #word-bank {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 40px;
+            padding: 20px;
+            background: rgba(0,0,0,0.04);
+            border-radius: 8px;
+        }
+
+        .word {
+            background: #fff;
+            padding: 6px 14px;
+            border: 1px solid #bdc3c7;
+            cursor: grab;
+            border-radius: 3px;
+            box-shadow: 2px 2px 0px rgba(0,0,0,0.1);
+            user-select: none;
+        }
+
+        #victory-screen {
+            display: none; 
+            position: absolute; 
+            top: 0; left: 0; 
+            width: 100%; height: 100%;
+            background: rgba(39, 174, 96, 0.95); 
+            color: white; 
+            flex-direction: column;
+            justify-content: center; 
+            align-items: center; 
+            z-index: 10;
+        }
+
+        button { padding: 10px 20px; font-family: inherit; cursor: pointer; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="loading-msg" class="loading">Consulting Case Files...</div>
+    
+    <div id="game-content" style="display:none;">
+        <h2 id="case-title"></h2>
+        <div id="case-body" class="case-notes"></div>
+        <div id="word-bank"></div>
+    </div>
+
+    <div id="victory-screen">
+        <h1>CASE CLOSED</h1>
+        <p>The evidence has been correctly filed.</p>
+        <button onclick="location.reload()">Reset Case</button>
+    </div>
+</div>
+
+<script>
+    // YOUR PROVIDED CSV LINK
+    const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRoKbrtbG6UDplIcBEyo3NtAIw0YpNllLp_jOnX_VMGslDw8tmO1B9ZSR0oXlMVYceb0dy0rHW3bQF-/pub?gid=0&single=true&output=csv';
+
+    async function fetchSheetData() {
+        try {
+            // Fetch with cache-busting
+            const response = await fetch(`${CSV_URL}&t=${Date.now()}`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const csvText = await response.text();
+            const allRows = parseCSV(csvText);
+
+            // Skip Header (Row 0), Get Case 1 (Row 1)
+            if (allRows.length < 2) throw new Error("Sheet data not found.");
+
+            const gameRow = allRows[1];
+            const title = gameRow[1];    // Column B
+            const notes = gameRow[2];    // Column C
+            const answers = gameRow[3].split(',').map(s => s.trim());  // Column D
+            const herrings = gameRow[4].split(',').map(s => s.trim()); // Column E
+
+            renderGame(title, notes, answers, herrings);
+        } catch (error) {
+            document.getElementById('loading-msg').innerHTML = 
+                `Error loading evidence.<br><br>` +
+                `<small style="font-weight:normal; color:red;">${error.message}</small><br>` +
+                `<p style="font-size: 0.8em; font-weight:normal;">Note: If running locally, browsers often block external fetches. Try hosting on GitHub Pages or a local server.</p>`;
+            console.error(error);
+        }
+    }
+
+    // Advanced CSV parser to handle quotes, commas within cells, and newlines
+    function parseCSV(str) {
+        const arr = [];
+        let quote = false;
+        let row = 0, col = 0;
+        for (let c = 0; c < str.length; c++) {
+            let cc = str[c], nc = str[c+1];
+            arr[row] = arr[row] || [];
+            arr[row][col] = arr[row][col] || '';
+            if (cc == '"' && quote && nc == '"') { arr[row][col] += cc; ++c; continue; }
+            if (cc == '"') { quote = !quote; continue; }
+            if (cc == ',' && !quote) { ++col; continue; }
+            if (cc == '\r' && nc == '\n' && !quote) { ++row; col = 0; ++c; continue; }
+            if (cc == '\n' && !quote) { ++row; col = 0; continue; }
+            if (cc == '\r' && !quote) { ++row; col = 0; continue; }
+            arr[row][col] += cc;
+        }
+        return arr;
+    }
+
+    function renderGame(title, notes, answers, herrings) {
+        document.getElementById('loading-msg').style.display = 'none';
+        document.getElementById('game-content').style.display = 'block';
+        document.getElementById('case-title').textContent = title;
+
+        const bodyContainer = document.getElementById('case-body');
+        
+        // Regex to split words while keeping spaces and newlines
+        const tokens = notes.split(/(\s+)/);
+
+        tokens.forEach(token => {
+            // Clean word for matching (remove punctuation and trim)
+            const cleanToken = token.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"").trim();
+            
+            if (cleanToken && answers.includes(cleanToken)) {
+                // Find where the word ends and punctuation begins in the original token
+                const puncMatch = token.match(/[.,\/#!$%\^&\*;:{}=\-_`~()]+$/);
+                const puncStr = puncMatch ? puncMatch[0] : "";
+
+                const slot = document.createElement('span');
+                slot.className = 'drop-zone';
+                slot.dataset.answer = cleanToken;
+                
+                bodyContainer.appendChild(slot);
+                if (puncStr) bodyContainer.appendChild(document.createTextNode(puncStr));
+            } else {
+                bodyContainer.appendChild(document.createTextNode(token));
+            }
+        });
+
+        // Word Bank Generation
+        const bank = document.getElementById('word-bank');
+        const combined = [...new Set([...answers, ...herrings])];
+        combined.sort(() => Math.random() - 0.5).forEach(text => {
+            const div = document.createElement('div');
+            div.className = 'word';
+            div.textContent = text;
+            div.draggable = true;
+            div.addEventListener('dragstart', (e) => e.dataTransfer.setData('text', text));
+            bank.appendChild(div);
+        });
+
+        initInteractivity();
+    }
+
+    function initInteractivity() {
+        document.querySelectorAll('.drop-zone').forEach(zone => {
+            zone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                zone.classList.add('hovered');
+            });
+            zone.addEventListener('dragleave', () => zone.classList.remove('hovered'));
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                zone.classList.remove('hovered');
+                const val = e.dataTransfer.getData('text');
+                zone.textContent = val;
+                
+                if (val === zone.dataset.answer) {
+                    zone.classList.remove('wrong');
+                    zone.classList.add('correct');
+                } else {
+                    zone.classList.remove('correct');
+                    zone.classList.add('wrong');
+                }
+                checkVictory();
+            });
+        });
+    }
+
+    function checkVictory() {
+        const zones = document.querySelectorAll('.drop-zone');
+        const allCorrect = Array.from(zones).every(z => z.classList.contains('correct'));
+        if (allCorrect && zones.length > 0) {
+            setTimeout(() => { document.getElementById('victory-screen').style.display = 'flex'; }, 600);
+        }
+    }
+
+    fetchSheetData();
+</script>
+
+</body>
+</html>
