@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detective's Case Ledger - Precision Edition</title>
+    <title>Detective's Case Ledger - Sheet Safe Edition</title>
     <style>
         :root {
             --paper-bg: #fdf6e3;
@@ -88,11 +88,11 @@
 <div id="game-container">
     <div id="menu-screen">
         <h2>Detective's Case Ledger</h2>
-        <div id="case-menu">Consulting the archives...</div>
+        <div id="case-menu">Opening the evidence locker...</div>
     </div>
 
     <div id="game-screen" style="display:none;">
-        <button class="nav-btn" onclick="showMenu()">← RETURN TO LEDGER</button>
+        <button class="nav-btn" onclick="showMenu()">← BACK TO LEDGER</button>
         <h2 id="case-title"></h2>
         <div id="case-body" class="case-notes"></div>
         <div id="word-bank"></div>
@@ -100,7 +100,7 @@
 
     <div id="victory-screen">
         <h1>CASE CLOSED</h1>
-        <p>Evidence verified and filed.</p>
+        <p>Your notes are accurate and the evidence matches.</p>
         <button class="nav-btn" style="background: white; color: #27ae60;" onclick="showMenu()">NEXT CASE</button>
     </div>
 </div>
@@ -149,14 +149,15 @@
         const bodyContainer = document.getElementById('case-body');
         bodyContainer.innerHTML = '';
 
-        // 1. Map occurrences of words in the notes
         const wordCounter = {};
-        const slotsToCreate = [];
 
-        // Parse Column D for specific instances like "ball[2]"
+        // Parse Column D for specific instances using COLON syntax: "ball:2"
         const answersMetadata = rawAnswers.map(ans => {
-            const match = ans.match(/(.+?)\[(\d+)\]/);
-            return match ? { word: match[1], instance: parseInt(match[2]) } : { word: ans, instance: 1 };
+            if (ans.includes(':')) {
+                const parts = ans.split(':');
+                return { word: parts[0], instance: parseInt(parts[1]) || 1 };
+            }
+            return { word: ans, instance: 1 };
         });
 
         const tokens = notes.split(/(\s+)/);
@@ -166,7 +167,6 @@
             if (cleanToken) {
                 wordCounter[cleanToken] = (wordCounter[cleanToken] || 0) + 1;
                 
-                // Check if this specific instance of this word should be a slot
                 const targetMatch = answersMetadata.find(meta => 
                     meta.word === cleanToken && meta.instance === wordCounter[cleanToken]
                 );
@@ -176,7 +176,6 @@
                     const slot = document.createElement('span');
                     slot.className = 'drop-zone';
                     slot.dataset.answer = cleanToken;
-                    slot.dataset.tokenId = tokenIndex; // Unique ID for this specific slot
                     
                     bodyContainer.appendChild(slot);
                     if (puncMatch) bodyContainer.appendChild(document.createTextNode(puncMatch[0]));
@@ -186,7 +185,6 @@
             bodyContainer.appendChild(document.createTextNode(token));
         });
 
-        // 2. Setup Word Bank
         const bank = document.getElementById('word-bank');
         bank.innerHTML = '';
         const displayWords = [...answersMetadata.map(m => m.word), ...herrings].sort(() => Math.random() - 0.5);
@@ -196,9 +194,7 @@
             div.className = 'word';
             div.textContent = text;
             div.draggable = true;
-            div.addEventListener('dragstart', (e) => {
-                e.dataTransfer.setData('text', text);
-            });
+            div.addEventListener('dragstart', (e) => e.dataTransfer.setData('text', text));
             bank.appendChild(div);
         });
 
