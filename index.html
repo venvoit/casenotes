@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detective's Case Notes - Live Feed</title>
+    <title>Detective's Case Ledger</title>
     <style>
         :root {
             --paper-bg: #fdf6e3;
             --ink-color: #2c3e50;
             --highlight: #2980b9;
             --error-color: #e74c3c;
+            --ledger-orange: #e67e22;
         }
 
         body {
@@ -24,25 +25,42 @@
         #game-container {
             background-color: var(--paper-bg);
             width: 100%;
-            max-width: 850px;
-            min-height: 500px;
+            max-width: 900px;
+            min-height: 600px;
             padding: 40px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            border-left: 25px solid #e67e22;
+            border-left: 30px solid var(--ledger-orange);
             position: relative;
         }
 
-        .loading { text-align: center; margin-top: 50px; font-weight: bold; }
-
-        h2 { text-align: center; text-decoration: underline; margin-top: 0; text-transform: uppercase; }
-
-        .case-notes { 
-            line-height: 2.2; 
-            font-size: 1.15rem; 
-            color: var(--ink-color); 
-            white-space: pre-wrap;
-            margin-top: 25px;
+        /* Menu Styling */
+        #case-menu {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 30px;
         }
+
+        .case-btn {
+            background: white;
+            border: 1px solid #bdc3c7;
+            padding: 15px;
+            cursor: pointer;
+            text-align: left;
+            font-family: inherit;
+            font-weight: bold;
+            box-shadow: 3px 3px 0px rgba(0,0,0,0.1);
+            transition: transform 0.1s;
+        }
+
+        .case-btn:hover {
+            background: #f0f0f0;
+            transform: translateY(-2px);
+        }
+
+        /* Game Elements */
+        h2 { text-align: center; text-decoration: underline; margin-top: 0; text-transform: uppercase; }
+        .case-notes { line-height: 2.2; font-size: 1.15rem; color: var(--ink-color); white-space: pre-wrap; }
 
         .drop-zone {
             display: inline-flex;
@@ -55,7 +73,6 @@
             vertical-align: middle;
             position: relative;
             top: -2px;
-            transition: all 0.2s;
             font-weight: bold;
         }
 
@@ -85,75 +102,132 @@
         }
 
         #victory-screen {
-            display: none; 
-            position: absolute; 
-            top: 0; left: 0; 
-            width: 100%; height: 100%;
-            background: rgba(39, 174, 96, 0.95); 
-            color: white; 
-            flex-direction: column;
-            justify-content: center; 
-            align-items: center; 
-            z-index: 10;
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(39, 174, 96, 0.95); color: white; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 10;
         }
 
-        button { padding: 10px 20px; font-family: inherit; cursor: pointer; font-weight: bold; }
+        .nav-btn {
+            background: var(--ink-color);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            cursor: pointer;
+            margin-top: 20px;
+            font-family: inherit;
+        }
     </style>
 </head>
 <body>
 
 <div id="game-container">
-    <div id="loading-msg" class="loading">Consulting Case Files...</div>
-    
-    <div id="game-content" style="display:none;">
-        <h2 id="case-title"></h2>
+    <div id="menu-screen">
+        <h2>Detective's Case Ledger</h2>
+        <p style="text-align: center;">Select a case file to begin the reconstruction.</p>
+        <div id="case-menu">Loading cases...</div>
+    </div>
+
+    <div id="game-screen" style="display:none;">
+        <button class="nav-btn" onclick="showMenu()"><- Back to Ledger</button>
+        <h2 id="case-title" style="margin-top: 20px;"></h2>
         <div id="case-body" class="case-notes"></div>
         <div id="word-bank"></div>
     </div>
 
     <div id="victory-screen">
         <h1>CASE CLOSED</h1>
-        <p>The evidence has been correctly filed.</p>
-        <button onclick="location.reload()">Reset Case</button>
+        <p>The evidence is perfectly aligned.</p>
+        <button class="nav-btn" style="background: white; color: green;" onclick="showMenu()">Back to Ledger</button>
     </div>
 </div>
 
 <script>
-    // YOUR PROVIDED CSV LINK
     const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRoKbrtbG6UDplIcBEyo3NtAIw0YpNllLp_jOnX_VMGslDw8tmO1B9ZSR0oXlMVYceb0dy0rHW3bQF-/pub?gid=0&single=true&output=csv';
+    let allCases = [];
 
-    async function fetchSheetData() {
+    // Initial Fetch
+    async function loadLedger() {
         try {
-            // Fetch with cache-busting
-            const response = await fetch(`${CSV_URL}&t=${Date.now()}`);
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
+            const response = await fetch(CSV_URL);
             const csvText = await response.text();
-            const allRows = parseCSV(csvText);
-
-            // Skip Header (Row 0), Get Case 1 (Row 1)
-            if (allRows.length < 2) throw new Error("Sheet data not found.");
-
-            const gameRow = allRows[1];
-            const title = gameRow[1];    // Column B
-            const notes = gameRow[2];    // Column C
-            const answers = gameRow[3].split(',').map(s => s.trim());  // Column D
-            const herrings = gameRow[4].split(',').map(s => s.trim()); // Column E
-
-            renderGame(title, notes, answers, herrings);
+            const rows = parseCSV(csvText);
+            
+            // Remove headers and store cases
+            allCases = rows.slice(1).filter(row => row[1]); // Ensure Title exists
+            
+            renderMenu();
         } catch (error) {
-            document.getElementById('loading-msg').innerHTML = 
-                `Error loading evidence.<br><br>` +
-                `<small style="font-weight:normal; color:red;">${error.message}</small><br>` +
-                `<p style="font-size: 0.8em; font-weight:normal;">Note: If running locally, browsers often block external fetches. Try hosting on GitHub Pages or a local server.</p>`;
+            document.getElementById('case-menu').textContent = "Error loading ledger. Verify Sheet publication.";
             console.error(error);
         }
     }
 
-    // Advanced CSV parser to handle quotes, commas within cells, and newlines
+    function renderMenu() {
+        const menu = document.getElementById('case-menu');
+        menu.innerHTML = '';
+        allCases.forEach((caseData, index) => {
+            const btn = document.createElement('button');
+            btn.className = 'case-btn';
+            btn.innerHTML = `FILE #${index + 1}<br><span style="font-size:0.8em; font-weight:normal;">${caseData[1]}</span>`;
+            btn.onclick = () => startGame(index);
+            menu.appendChild(btn);
+        });
+    }
+
+    function startGame(index) {
+        const data = allCases[index];
+        const title = data[1];
+        const notes = data[2];
+        const answers = data[3].split(',').map(s => s.trim());
+        const herrings = data[4].split(',').map(s => s.trim());
+
+        // Hide menu, Show game
+        document.getElementById('menu-screen').style.display = 'none';
+        document.getElementById('game-screen').style.display = 'block';
+        document.getElementById('victory-screen').style.display = 'none';
+        
+        document.getElementById('case-title').textContent = title;
+        const bodyContainer = document.getElementById('case-body');
+        bodyContainer.innerHTML = '';
+
+        const tokens = notes.split(/(\s+)/);
+        tokens.forEach(token => {
+            const cleanToken = token.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"").trim();
+            if (cleanToken && answers.includes(cleanToken)) {
+                const puncMatch = token.match(/[.,\/#!$%\^&\*;:{}=\-_`~()]+$/);
+                const puncStr = puncMatch ? puncMatch[0] : "";
+                const slot = document.createElement('span');
+                slot.className = 'drop-zone';
+                slot.dataset.answer = cleanToken;
+                bodyContainer.appendChild(slot);
+                if (puncStr) bodyContainer.appendChild(document.createTextNode(puncStr));
+            } else {
+                bodyContainer.appendChild(document.createTextNode(token));
+            }
+        });
+
+        const bank = document.getElementById('word-bank');
+        bank.innerHTML = '';
+        const combined = [...new Set([...answers, ...herrings])].sort(() => Math.random() - 0.5);
+        combined.forEach(text => {
+            const div = document.createElement('div');
+            div.className = 'word';
+            div.textContent = text;
+            div.draggable = true;
+            div.addEventListener('dragstart', (e) => e.dataTransfer.setData('text', text));
+            bank.appendChild(div);
+        });
+
+        initInteractivity();
+    }
+
+    function showMenu() {
+        document.getElementById('menu-screen').style.display = 'block';
+        document.getElementById('game-screen').style.display = 'none';
+        document.getElementById('victory-screen').style.display = 'none';
+    }
+
+    // Reuse the robust parser
     function parseCSV(str) {
         const arr = [];
         let quote = false;
@@ -173,64 +247,15 @@
         return arr;
     }
 
-    function renderGame(title, notes, answers, herrings) {
-        document.getElementById('loading-msg').style.display = 'none';
-        document.getElementById('game-content').style.display = 'block';
-        document.getElementById('case-title').textContent = title;
-
-        const bodyContainer = document.getElementById('case-body');
-        
-        // Regex to split words while keeping spaces and newlines
-        const tokens = notes.split(/(\s+)/);
-
-        tokens.forEach(token => {
-            // Clean word for matching (remove punctuation and trim)
-            const cleanToken = token.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"").trim();
-            
-            if (cleanToken && answers.includes(cleanToken)) {
-                // Find where the word ends and punctuation begins in the original token
-                const puncMatch = token.match(/[.,\/#!$%\^&\*;:{}=\-_`~()]+$/);
-                const puncStr = puncMatch ? puncMatch[0] : "";
-
-                const slot = document.createElement('span');
-                slot.className = 'drop-zone';
-                slot.dataset.answer = cleanToken;
-                
-                bodyContainer.appendChild(slot);
-                if (puncStr) bodyContainer.appendChild(document.createTextNode(puncStr));
-            } else {
-                bodyContainer.appendChild(document.createTextNode(token));
-            }
-        });
-
-        // Word Bank Generation
-        const bank = document.getElementById('word-bank');
-        const combined = [...new Set([...answers, ...herrings])];
-        combined.sort(() => Math.random() - 0.5).forEach(text => {
-            const div = document.createElement('div');
-            div.className = 'word';
-            div.textContent = text;
-            div.draggable = true;
-            div.addEventListener('dragstart', (e) => e.dataTransfer.setData('text', text));
-            bank.appendChild(div);
-        });
-
-        initInteractivity();
-    }
-
     function initInteractivity() {
         document.querySelectorAll('.drop-zone').forEach(zone => {
-            zone.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                zone.classList.add('hovered');
-            });
+            zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('hovered'); });
             zone.addEventListener('dragleave', () => zone.classList.remove('hovered'));
             zone.addEventListener('drop', (e) => {
                 e.preventDefault();
                 zone.classList.remove('hovered');
                 const val = e.dataTransfer.getData('text');
                 zone.textContent = val;
-                
                 if (val === zone.dataset.answer) {
                     zone.classList.remove('wrong');
                     zone.classList.add('correct');
@@ -251,8 +276,7 @@
         }
     }
 
-    fetchSheetData();
+    loadLedger();
 </script>
-
 </body>
 </html>
