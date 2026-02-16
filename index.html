@@ -26,7 +26,7 @@
             background-color: var(--paper-bg);
             width: 100%;
             max-width: 900px;
-            min-height: 600px;
+            min-height: 650px;
             padding: 40px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             border-left: 30px solid var(--ledger-orange);
@@ -36,7 +36,7 @@
         /* Menu Styling */
         #case-menu {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
             gap: 15px;
             margin-top: 30px;
         }
@@ -50,23 +50,24 @@
             font-family: inherit;
             font-weight: bold;
             box-shadow: 3px 3px 0px rgba(0,0,0,0.1);
-            transition: transform 0.1s;
+            transition: all 0.1s;
         }
 
         .case-btn:hover {
-            background: #f0f0f0;
+            background: #fdfaf0;
+            border-color: var(--ledger-orange);
             transform: translateY(-2px);
         }
 
         /* Game Elements */
         h2 { text-align: center; text-decoration: underline; margin-top: 0; text-transform: uppercase; }
-        .case-notes { line-height: 2.2; font-size: 1.15rem; color: var(--ink-color); white-space: pre-wrap; }
+        .case-notes { line-height: 2.3; font-size: 1.15rem; color: var(--ink-color); white-space: pre-wrap; margin-top: 20px; }
 
         .drop-zone {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            min-width: 110px;
+            min-width: 120px;
             height: 1.4em;
             border-bottom: 2px solid #7f8c8d;
             margin: 0 4px;
@@ -74,10 +75,11 @@
             position: relative;
             top: -2px;
             font-weight: bold;
+            transition: background 0.2s;
         }
 
-        .drop-zone.wrong { color: var(--error-color); border-bottom-color: var(--error-color); }
-        .drop-zone.correct { color: var(--highlight); border-bottom: none; font-style: italic; }
+        .drop-zone.wrong { color: var(--error-color); border-bottom-color: var(--error-color); background: rgba(231, 76, 60, 0.05); }
+        .drop-zone.correct { color: var(--highlight); border-bottom: none; font-style: italic; background: transparent; }
         .drop-zone.hovered { background-color: rgba(52, 152, 219, 0.1); }
 
         #word-bank {
@@ -86,25 +88,29 @@
             gap: 12px;
             justify-content: center;
             margin-top: 40px;
-            padding: 20px;
+            padding: 25px;
             background: rgba(0,0,0,0.04);
             border-radius: 8px;
+            border: 1px dashed #ccc;
         }
 
         .word {
             background: #fff;
-            padding: 6px 14px;
+            padding: 8px 16px;
             border: 1px solid #bdc3c7;
             cursor: grab;
             border-radius: 3px;
             box-shadow: 2px 2px 0px rgba(0,0,0,0.1);
             user-select: none;
+            font-weight: bold;
         }
+
+        .word:active { cursor: grabbing; }
 
         #victory-screen {
             display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(39, 174, 96, 0.95); color: white; flex-direction: column;
-            justify-content: center; align-items: center; z-index: 10;
+            background: rgba(39, 174, 96, 0.96); color: white; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 10; text-align: center;
         }
 
         .nav-btn {
@@ -113,8 +119,9 @@
             padding: 10px 20px;
             border: none;
             cursor: pointer;
-            margin-top: 20px;
+            margin-bottom: 20px;
             font-family: inherit;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -123,21 +130,21 @@
 <div id="game-container">
     <div id="menu-screen">
         <h2>Detective's Case Ledger</h2>
-        <p style="text-align: center;">Select a case file to begin the reconstruction.</p>
-        <div id="case-menu">Loading cases...</div>
+        <p style="text-align: center; font-style: italic;">Select a case file to begin the reconstruction.</p>
+        <div id="case-menu">Consulting the archives...</div>
     </div>
 
     <div id="game-screen" style="display:none;">
-        <button class="nav-btn" onclick="showMenu()"><- Back to Ledger</button>
-        <h2 id="case-title" style="margin-top: 20px;"></h2>
+        <button class="nav-btn" onclick="showMenu()">← RETURN TO LEDGER</button>
+        <h2 id="case-title"></h2>
         <div id="case-body" class="case-notes"></div>
         <div id="word-bank"></div>
     </div>
 
     <div id="victory-screen">
-        <h1>CASE CLOSED</h1>
-        <p>The evidence is perfectly aligned.</p>
-        <button class="nav-btn" style="background: white; color: green;" onclick="showMenu()">Back to Ledger</button>
+        <h1 style="font-size: 3rem; margin-bottom: 10px;">CASE CLOSED</h1>
+        <p style="font-size: 1.2rem; margin-bottom: 30px;">The evidence has been correctly filed and the notes are complete.</p>
+        <button class="nav-btn" style="background: white; color: #27ae60; font-size: 1.1rem; padding: 15px 30px;" onclick="showMenu()">NEXT CASE</button>
     </div>
 </div>
 
@@ -145,19 +152,18 @@
     const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRoKbrtbG6UDplIcBEyo3NtAIw0YpNllLp_jOnX_VMGslDw8tmO1B9ZSR0oXlMVYceb0dy0rHW3bQF-/pub?gid=0&single=true&output=csv';
     let allCases = [];
 
-    // Initial Fetch
     async function loadLedger() {
         try {
-            const response = await fetch(CSV_URL);
+            const response = await fetch(`${CSV_URL}&t=${Date.now()}`);
             const csvText = await response.text();
             const rows = parseCSV(csvText);
             
-            // Remove headers and store cases
-            allCases = rows.slice(1).filter(row => row[1]); // Ensure Title exists
+            // Slice(1) ignores headers. Filter ensures we don't count empty rows.
+            allCases = rows.slice(1).filter(row => row[1] && row[1].trim() !== "");
             
             renderMenu();
         } catch (error) {
-            document.getElementById('case-menu').textContent = "Error loading ledger. Verify Sheet publication.";
+            document.getElementById('case-menu').textContent = "Failed to open ledger. Verify the Google Sheet is Published to Web.";
             console.error(error);
         }
     }
@@ -168,7 +174,7 @@
         allCases.forEach((caseData, index) => {
             const btn = document.createElement('button');
             btn.className = 'case-btn';
-            btn.innerHTML = `FILE #${index + 1}<br><span style="font-size:0.8em; font-weight:normal;">${caseData[1]}</span>`;
+            btn.innerHTML = `FILE #${index + 1}<br><span style="font-size:0.85em; color:#666; font-weight:normal;">${caseData[1]}</span>`;
             btn.onclick = () => startGame(index);
             menu.appendChild(btn);
         });
@@ -181,7 +187,6 @@
         const answers = data[3].split(',').map(s => s.trim());
         const herrings = data[4].split(',').map(s => s.trim());
 
-        // Hide menu, Show game
         document.getElementById('menu-screen').style.display = 'none';
         document.getElementById('game-screen').style.display = 'block';
         document.getElementById('victory-screen').style.display = 'none';
@@ -190,15 +195,19 @@
         const bodyContainer = document.getElementById('case-body');
         bodyContainer.innerHTML = '';
 
+        // Tokenize text to find answers while preserving spaces/newlines
         const tokens = notes.split(/(\s+)/);
         tokens.forEach(token => {
             const cleanToken = token.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"").trim();
+            
             if (cleanToken && answers.includes(cleanToken)) {
                 const puncMatch = token.match(/[.,\/#!$%\^&\*;:{}=\-_`~()]+$/);
                 const puncStr = puncMatch ? puncMatch[0] : "";
+                
                 const slot = document.createElement('span');
                 slot.className = 'drop-zone';
                 slot.dataset.answer = cleanToken;
+                
                 bodyContainer.appendChild(slot);
                 if (puncStr) bodyContainer.appendChild(document.createTextNode(puncStr));
             } else {
@@ -206,9 +215,11 @@
             }
         });
 
+        // Word Bank Setup
         const bank = document.getElementById('word-bank');
         bank.innerHTML = '';
         const combined = [...new Set([...answers, ...herrings])].sort(() => Math.random() - 0.5);
+        
         combined.forEach(text => {
             const div = document.createElement('div');
             div.className = 'word';
@@ -221,13 +232,52 @@
         initInteractivity();
     }
 
+    function initInteractivity() {
+        document.querySelectorAll('.drop-zone').forEach(zone => {
+            zone.addEventListener('dragover', (e) => { 
+                e.preventDefault(); 
+                if (!zone.classList.contains('correct')) zone.classList.add('hovered'); 
+            });
+            
+            zone.addEventListener('dragleave', () => zone.classList.remove('hovered'));
+            
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                zone.classList.remove('hovered');
+                
+                const val = e.dataTransfer.getData('text');
+                zone.textContent = val;
+
+                if (val === zone.dataset.answer) {
+                    zone.classList.remove('wrong');
+                    zone.classList.add('correct');
+                    // REMOVE FROM BANK:
+                    removeWordFromBank(val);
+                } else {
+                    zone.classList.remove('correct');
+                    zone.classList.add('wrong');
+                }
+                checkVictory();
+            });
+        });
+    }
+
+    function removeWordFromBank(text) {
+        const bankWords = document.querySelectorAll('#word-bank .word');
+        for (let wordEl of bankWords) {
+            if (wordEl.textContent === text && wordEl.style.display !== 'none') {
+                wordEl.style.display = 'none';
+                break; 
+            }
+        }
+    }
+
     function showMenu() {
         document.getElementById('menu-screen').style.display = 'block';
         document.getElementById('game-screen').style.display = 'none';
         document.getElementById('victory-screen').style.display = 'none';
     }
 
-    // Reuse the robust parser
     function parseCSV(str) {
         const arr = [];
         let quote = false;
@@ -245,27 +295,6 @@
             arr[row][col] += cc;
         }
         return arr;
-    }
-
-    function initInteractivity() {
-        document.querySelectorAll('.drop-zone').forEach(zone => {
-            zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('hovered'); });
-            zone.addEventListener('dragleave', () => zone.classList.remove('hovered'));
-            zone.addEventListener('drop', (e) => {
-                e.preventDefault();
-                zone.classList.remove('hovered');
-                const val = e.dataTransfer.getData('text');
-                zone.textContent = val;
-                if (val === zone.dataset.answer) {
-                    zone.classList.remove('wrong');
-                    zone.classList.add('correct');
-                } else {
-                    zone.classList.remove('correct');
-                    zone.classList.add('wrong');
-                }
-                checkVictory();
-            });
-        });
     }
 
     function checkVictory() {
